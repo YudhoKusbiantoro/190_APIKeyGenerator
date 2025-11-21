@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Admin</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background: #f5f7fa;
+            color: #333;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #1976d2;
+        }
+
+        h1 {
+            color: #2c3e50;
+            font-size: 28px;
+        }
+
+        .welcome {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .logout {
+            background: #e74c3c;
+            color: white;
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-weight: 600;
+        }
+
+        .logout:hover {
+            background: #c0392b;
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            overflow: hidden;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th,
+        td {
+            padding: 16px 20px;
+            text-align: left;
+        }
+
+        th {
+            background: #1976d2;
+            color: white;
+            font-weight: 600;
+        }
+
+        tr:nth-child(even) {
+            background: #f8f9fa;
+        }
+
+        tr:hover {
+            background: #edf7ff;
+        }
+
+        code {
+            background: #f1f9ff;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 14px;
+        }
+
+        .empty {
+            text-align: center;
+            padding: 40px;
+            color: #7f8c8d;
+            font-style: italic;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+
+            th,
+            td {
+                padding: 12px 10px;
+                font-size: 14px;
+            }
+
+            h1 {
+                font-size: 22px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>📊 Dashboard Admin</h1>
+            <div class="welcome">
+                <span>Selamat datang, <strong id="adminName">Admin</strong>!</span>
+                <a href="/logout" class="logout">Logout</a>
+            </div>
+        </header>
+
+        <div class="card">
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Nama Depan</th>
+                        <th>Nama Belakang</th>
+                        <th>Email</th>
+                        <th>API Key</th>
+                        <th>Status</th>
+                        <th>Aksi</th>
+                    </tr>
+                </thead>
+                <tbody id="userTable">
+                    <tr>
+                        <td colspan="7" style="text-align: center; padding: 20px;">Memuat data...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        // Ambil data admin yang sedang login
+        fetch('/current-admin')
+            .then(async (response) => {
+                if (response.status === 403) {
+                    alert('Session tidak valid. Silakan login ulang.');
+                    window.location.href = '/login';
+                    return null;
+                }
+                const contentType = response.headers.get('content-type');
+                if (contentType && !contentType.includes('application/json')) {
+                    alert('Error: tidak mendapatkan data admin dalam format JSON.');
+                    window.location.href = '/login';
+                    return null;
+                }
+                return response.json();
+            })
+            .then(adminData => {
+                if (!adminData || !adminData.success) return;
+
+                // Tampilkan nama admin yang benar
+                document.getElementById('adminName').textContent = adminData.admin.nama;
+            })
+            .catch(err => {
+                console.error('Error ambil data admin:', err);
+                // Tidak mengganggu loading data user
+            });
+
+        // Ambil data user untuk tabel
+        fetch('/dashboard-data')
+            .then(async (response) => {
+                if (response.status === 403 || response.status === 401) {
+                    alert('Session tidak valid. Silakan login ulang.');
+                    window.location.href = '/login';
+                    return null;
+                }
+                const contentType = response.headers.get('content-type');
+                if (contentType && !contentType.includes('application/json')) {
+                    alert('Error: tidak mendapatkan data user dalam format JSON.');
+                    window.location.href = '/login';
+                    return null;
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (!data || !data.success) {
+                    alert('Gagal memuat data user: ' + (data?.error || 'Error tidak diketahui'));
+                    return;
+                }
+
+                const tbody = document.getElementById('userTable');
+                if (data.users.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="7" class="empty">Belum ada user.</td></tr>`;
+                } else {
+                    let rows = '';
+                    data.users.forEach(user => {
+                        const statusColor = user.status === 'active' ? '#27ae60' : '#e74c3c';
+                        rows += `
+                        <tr>
+                            <td>${user.id}</td>
+                            <td>${user.firstname}</td>
+                            <td>${user.lastname}</td>
+                            <td>${user.email}</td>
+                            <td><code>${user.api_key}</code></td>
+                            <td><span style="color:${statusColor}; font-weight:bold;">${user.status}</span></td>
+                            <td>
+                                <button 
+                                    onclick="hapusUser(${user.id})" 
+                                    style="padding:6px 12px; background:#e74c3c; color:white; border:none; border-radius:6px; cursor:pointer;">
+                                    Hapus
+                                </button>
+                            </td>
+                        </tr>
+                    `;
+                    });
+                    tbody.innerHTML = rows;
+                }
+            })
+            .catch(err => {
+                console.error('Error fetching user data:', err);
+                alert('Gagal memuat data user. Coba refresh halaman.');
+            });
+
+        function hapusUser(userId) {
+            if (!confirm('Yakin hapus user ini?')) return;
+
+            fetch(`/delete-user/${userId}`, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' }
+            })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('✅ User berhasil dihapus!');
+                        window.location.reload();
+                    } else {
+                        alert('❌ Gagal menghapus user: ' + (data.error || 'Error tidak diketahui'));
+                    }
+                })
+                .catch(err => {
+                    console.error('Error hapus user:', err);
+                    alert('❌ Terjadi kesalahan saat menghapus user.');
+                });
+        }
+    </script>
+</body>
+
+</html>
